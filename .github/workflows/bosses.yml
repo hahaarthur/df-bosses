@@ -34,6 +34,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           end=$((SECONDS + 345 * 60))
           while [ $SECONDS -lt $end ]; do
+            # Pega mudanças feitas fora do robô (ex.: correção à mão) antes de ler o feed
+            git pull -q --rebase || { git rebase --abort 2>/dev/null; git reset -q --hard origin/main; }
             node update.js || echo "falha ao ler o feed, tentando de novo na próxima volta"
             git add bosses.json
             if ! git diff --cached --quiet; then
