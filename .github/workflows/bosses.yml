@@ -1,0 +1,38 @@
+name: Atualizar bosses
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'   # a cada 10 minutos (o GitHub às vezes atrasa alguns minutos)
+  workflow_dispatch:          # botão "Run workflow" pra rodar na hora
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bosses
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Ler o feed do DFProfiler
+        run: node update.js
+
+      - name: Salvar no repositório
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bosses.json
+          if git diff --cached --quiet; then
+            echo "sem mudanças"
+          else
+            git commit -m "bosses $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push
+          fi
