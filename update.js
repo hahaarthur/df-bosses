@@ -62,8 +62,13 @@ async function main() {
     const start = toMs(raw.start_time), end = toMs(raw.end_time);
     if (!start || !end || dayKey(start) !== today) continue;
 
+    // Só conta o boss ISOLADO (world boss), tipo "1 x Devil Hound".
+    // Na wasteland e nos nests ele vem junto com outros inimigos — ignorado.
+    const lines = enemies.split('\n').map(s => s.trim()).filter(Boolean);
+    if (lines.length !== 1) continue;
+
     for (const boss of BOSSES) {
-      if (!boss.match.test(enemies)) continue;
+      if (!boss.match.test(lines[0])) continue;
       const prev = data.seen[boss.id];
       if (!prev || end > prev.end) {
         data.seen[boss.id] = { start, end, locations: locs };
