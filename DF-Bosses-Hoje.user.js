@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DF Bosses Hoje
 // @namespace    df1
-// @version      1.2.1
+// @version      1.3.0
 // @downloadURL  https://raw.githubusercontent.com/hahaarthur/df-bosses/main/DF-Bosses-Hoje.user.js
 // @updateURL    https://raw.githubusercontent.com/hahaarthur/df-bosses/main/DF-Bosses-Hoje.user.js
 // @description  Painel embaixo do Onslaught Cycles: mostra se Volatile Leaper, Behemoth, Devil Hound e Elite Bandit estão ativos agora ou se o tempo deles já passou hoje.
@@ -24,7 +24,9 @@
     { id: 'leaper',   name: 'Volatile Leaper', match: /volatile\s*leaper/i },
     { id: 'behemoth', name: 'Behemoth',        match: /behemoth/i },
     { id: 'hound',    name: 'Devil Hound',     match: /devil\s*hound/i },
-    { id: 'bandit',   name: 'Elite Bandit',    match: /elite\s*bandit/i },
+    // No feed o Elite Bandit aparece como "8 x Bandits" num local só (dura 3h). As hordas de
+    // "x Bandits" espalhadas têm vários locais e são ignoradas pelo "oneLocation".
+    { id: 'bandit',   name: 'Elite Bandit',    match: /^\d+\s*x\s*bandits?$/i, oneLocation: true },
   ];
 
   // Hora (UTC) em que o "feito hoje" zera. 9 = 09:00 UTC = 06:00 no horário de Brasília.
@@ -53,7 +55,9 @@
 
   // Só conta o boss ISOLADO (world boss): o evento tem que ter só ele, tipo "1 x Devil Hound".
   // Na wasteland e nos nests ele vem junto com outros inimigos no mesmo evento — esses são ignorados.
-  function isWorldBoss(boss, enemiesText) {
+  function isWorldBoss(boss, e) {
+    if (boss.oneLocation && (!e.locations || e.locations.length !== 1)) return false;
+    const enemiesText = e.enemies;
     const lines = String(enemiesText).split('\n').map(s => s.trim()).filter(Boolean);
     return lines.length === 1 && boss.match.test(lines[0]);
   }
@@ -95,7 +99,7 @@
     let changed = false;
     for (const boss of BOSSES) {
       for (const e of events) {
-        if (!isWorldBoss(boss, e.enemies) || !e.start || !e.end) continue;
+        if (!isWorldBoss(boss, e) || !e.start || !e.end) continue;
         if (dayKey(e.start) !== s.day) continue;
         const prev = s.seen[boss.id];
         if (!prev || e.end > prev.end) { s.seen[boss.id] = { start: e.start, end: e.end }; changed = true; }
@@ -210,7 +214,7 @@
   function bossStatus(boss, now) {
     let active = null, upcoming = null;
     for (const e of events) {
-      if (!isWorldBoss(boss, e.enemies)) continue;
+      if (!isWorldBoss(boss, e)) continue;
       if (isActive(e, now)) { if (!active || e.end > active.end) active = e; }
       else if (e.start > now) { if (!upcoming || e.start < upcoming.start) upcoming = e; }
     }

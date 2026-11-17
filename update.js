@@ -10,7 +10,9 @@ const BOSSES = [
   { id: 'leaper',   match: /volatile\s*leaper/i },
   { id: 'behemoth', match: /behemoth/i },
   { id: 'hound',    match: /devil\s*hound/i },
-  { id: 'bandit',   match: /elite\s*bandit/i },
+  // No feed o Elite Bandit aparece como "8 x Bandits" num local só (dura 3h).
+  // As hordas de "x Bandits" espalhadas têm vários locais — ignoradas pelo "oneLocation".
+  { id: 'bandit',   match: /^\d+\s*x\s*bandits?$/i, oneLocation: true },
 ];
 const RESET_UTC_HOUR = 9;
 
@@ -69,6 +71,7 @@ async function main() {
 
     for (const boss of BOSSES) {
       if (!boss.match.test(lines[0])) continue;
+      if (boss.oneLocation && locs.length !== 1) continue;
       const prev = data.seen[boss.id];
       if (!prev || end > prev.end) {
         data.seen[boss.id] = { start, end, locations: locs };
