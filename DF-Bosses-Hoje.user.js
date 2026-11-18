@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         DF Bosses Hoje
 // @namespace    df1
-// @version      1.3.0
+// @version      1.4.0
 // @downloadURL  https://raw.githubusercontent.com/hahaarthur/df-bosses/main/DF-Bosses-Hoje.user.js
 // @updateURL    https://raw.githubusercontent.com/hahaarthur/df-bosses/main/DF-Bosses-Hoje.user.js
-// @description  Painel embaixo do Onslaught Cycles: mostra se Volatile Leaper, Behemoth, Devil Hound e Elite Bandit estão ativos agora ou se o tempo deles já passou hoje.
+// @description  Painel embaixo do Onslaught Cycles: mostra se Volatile Leaper, Behemoth, Devil Hound e Elite Bandit estão ativos agora ou se o tempo deles já passou hoje, e os nests do Secronom e do Ground Zero quando estão rolando.
 // @match        *://fairview.deadfrontier.com/onlinezombiemmo/*
 // @connect      www.dfprofiler.com
 // @connect      raw.githubusercontent.com
@@ -28,6 +28,15 @@
     // "x Bandits" espalhadas têm vários locais e são ignoradas pelo "oneLocation".
     { id: 'bandit',   name: 'Elite Bandit',    match: /^\d+\s*x\s*bandits?$/i, oneLocation: true },
   ];
+
+  // Nests (ninhos): vários bosses diferentes juntos num bloco. Acontecem várias vezes por dia,
+  // então não têm "feito": só aparecem no painel enquanto estão ativos ou anunciados.
+  // Conta como nest o evento com 2+ tipos de inimigo a até NEST_RADIUS blocos do ponto abaixo.
+  const NESTS = [
+    { id: 'secronom', name: 'Nest Secronom', x: 1054, y: 987 },
+    { id: 'gz',       name: 'Nest Ground Zero', x: 1058, y: 1019 },
+  ];
+  const NEST_RADIUS = 6;
 
   // Hora (UTC) em que o "feito hoje" zera. 9 = 09:00 UTC = 06:00 no horário de Brasília.
   const RESET_UTC_HOUR = 9;
@@ -221,6 +230,23 @@
     return { active, upcoming };
   }
 
+  function isNest(nest, e) {
+    const lines = String(e.enemies).split('\n').map(s => s.trim()).filter(Boolean);
+    if (lines.length < 2 || !e.locations.length) return false;
+    return e.locations.every(l => Math.abs(l[0] - nest.x) <= NEST_RADIUS && Math.abs(l[1] - nest.y) <= NEST_RADIUS);
+  }
+
+  // Mesmo formato do bossStatus, pra reaproveitar a linha do painel.
+  function nestStatus(nest, now) {
+    let active = null, upcoming = null;
+    for (const e of events) {
+      if (!isNest(nest, e)) continue;
+      if (isActive(e, now)) { if (!active || e.end > active.end) active = e; }
+      else if (e.start > now) { if (!upcoming || e.start < upcoming.start) upcoming = e; }
+    }
+    return { active, upcoming };
+  }
+
   function shortTime(ms) {
     if (ms < 0) ms = 0;
     const m = Math.ceil(ms / 60000);
@@ -291,8 +317,10 @@
       'display:flex;gap:5px;align-items:baseline;line-height:1.35;padding-left:4px;' +
       'border-left:3px solid ' + (active ? COLOR_ACCENT : 'transparent') + ';' +
       (active ? 'background:rgba(255,255,255,0.10);' : '');
-    if (active && st.active.locations.length) {
-      el.title = 'Locais: ' + st.active.locations.map(l => l[0] + ',' + l[1]).join('  ');
+    const shown = active ? st.active : st.upcoming;
+    if (shown && shown.locations.length) {
+      el.title = 'Locais: ' + shown.locations.map(l => l[0] + ',' + l[1]).join('  ') +
+        (boss.x ? '\n' + shown.enemies : '');
     }
 
     const check = document.createElement('span');
@@ -348,6 +376,19 @@
 
     for (const boss of BOSSES) {
       bodyEl.appendChild(bossRow(boss, bossStatus(boss, now), isDone(ds, boss.id, now), now));
+    }
+
+    // Nests: só aparecem quando estão rolando ou anunciados
+    const nestRows = [];
+    for (const nest of NESTS) {
+      const st = nestStatus(nest, now);
+      if (st.active || st.upcoming) nestRows.push(bossRow(nest, st, false, now));
+    }
+    if (nestRows.length) {
+      const sep = document.createElement('div');
+      sep.style.cssText = 'border-top:1px solid #550000;margin:3px 0 2px;';
+      bodyEl.appendChild(sep);
+      nestRows.forEach(r => bodyEl.appendChild(r));
     }
 
     if (!lastFetch) {
