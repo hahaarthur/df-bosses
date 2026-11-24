@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DF Bosses Hoje
 // @namespace    df1
-// @version      1.4.0
+// @version      1.4.1
 // @downloadURL  https://raw.githubusercontent.com/hahaarthur/df-bosses/main/DF-Bosses-Hoje.user.js
 // @updateURL    https://raw.githubusercontent.com/hahaarthur/df-bosses/main/DF-Bosses-Hoje.user.js
 // @description  Painel embaixo do Onslaught Cycles: mostra se Volatile Leaper, Behemoth, Devil Hound e Elite Bandit estão ativos agora ou se o tempo deles já passou hoje, e os nests do Secronom e do Ground Zero quando estão rolando.
@@ -25,8 +25,8 @@
     { id: 'behemoth', name: 'Behemoth',        match: /behemoth/i },
     { id: 'hound',    name: 'Devil Hound',     match: /devil\s*hound/i },
     // No feed o Elite Bandit aparece como "8 x Bandits" num local só (dura 3h). As hordas de
-    // "x Bandits" espalhadas têm vários locais e são ignoradas pelo "oneLocation".
-    { id: 'bandit',   name: 'Elite Bandit',    match: /^\d+\s*x\s*bandits?$/i, oneLocation: true },
+    // "x Bandits" espalhadas têm vários locais e são ignoradas (ver isWorldBoss).
+    { id: 'bandit',   name: 'Elite Bandit',    match: /^\d+\s*x\s*bandits?$/i  },
   ];
 
   // Nests (ninhos): vários bosses diferentes juntos num bloco. Acontecem várias vezes por dia,
@@ -60,12 +60,16 @@
   const PANEL_GAP_PX = 8;
   const FALLBACK_TOP_PX = 220;    // se o Onslaught Cycles não estiver na página
 
-  const DONE_KEY = 'bosses_done_v2'; // v2: descarta o que a versão antiga guardou (contava boss de wasteland/nest)
+  const DONE_KEY = 'bosses_done_v3'; // v3: descarta o que a versão antiga guardou (contava Devil Hound da wasteland)
+  const MIN_BOSS_MS = 150 * 60 * 1000; // world boss dura 3h; os da wasteland, 1h
 
   // Só conta o boss ISOLADO (world boss): o evento tem que ter só ele, tipo "1 x Devil Hound".
   // Na wasteland e nos nests ele vem junto com outros inimigos no mesmo evento — esses são ignorados.
   function isWorldBoss(boss, e) {
-    if (boss.oneLocation && (!e.locations || e.locations.length !== 1)) return false;
+    // World boss de verdade: um local só e dura ~3h. Os da wasteland (ex: Devil Hound)
+    // duram 1h e vêm espalhados em vários locais; as hordas de bandits também.
+    if (!e.locations || e.locations.length !== 1) return false;
+    if (!e.start || !e.end || e.end - e.start < MIN_BOSS_MS) return false;
     const enemiesText = e.enemies;
     const lines = String(enemiesText).split('\n').map(s => s.trim()).filter(Boolean);
     return lines.length === 1 && boss.match.test(lines[0]);

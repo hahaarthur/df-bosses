@@ -11,14 +11,15 @@ const BOSSES = [
   { id: 'behemoth', match: /behemoth/i },
   { id: 'hound',    match: /devil\s*hound/i },
   // No feed o Elite Bandit aparece como "8 x Bandits" num local só (dura 3h).
-  // As hordas de "x Bandits" espalhadas têm vários locais — ignoradas pelo "oneLocation".
-  { id: 'bandit',   match: /^\d+\s*x\s*bandits?$/i, oneLocation: true },
+  // As hordas de "x Bandits" espalhadas têm vários locais — ignoradas (um local só e 3h, ver abaixo).
+  { id: 'bandit',   match: /^\d+\s*x\s*bandits?$/i  },
 ];
 const RESET_UTC_HOUR = 9;
 
 const FEED_URL = 'https://www.dfprofiler.com/bossmap/json/';
 const OUT_FILE = path.join(__dirname, 'bosses.json');
 const ONSLAUGHT_COORD = 3000;
+const MIN_BOSS_MS = 150 * 60 * 1000; // world boss dura 3h; os da wasteland, 1h
 
 function dayKey(t) {
   const d = new Date(t - RESET_UTC_HOUR * 3600 * 1000);
@@ -71,7 +72,9 @@ async function main() {
 
     for (const boss of BOSSES) {
       if (!boss.match.test(lines[0])) continue;
-      if (boss.oneLocation && locs.length !== 1) continue;
+      // World boss de verdade: um local só e dura ~3h. Os da wasteland (ex: Devil Hound)
+      // duram 1h e vêm espalhados em vários locais; as hordas de bandits também.
+      if (locs.length !== 1 || end - start < MIN_BOSS_MS) continue;
       const prev = data.seen[boss.id];
       if (!prev || end > prev.end) {
         data.seen[boss.id] = { start, end, locations: locs };
